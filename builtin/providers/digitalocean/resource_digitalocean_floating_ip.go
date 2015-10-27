@@ -36,7 +36,7 @@ func resourceFloatingIPCreate(d *schema.ResourceData, m interface{}) error {
 	dropletID := d.Get("droplet_id").(int)
 
 	if region != "" && dropletID > 0 {
-		return errors.New("Region and droplet_id are mutually exclusive")
+		return errors.New("Floating IP region and droplet_id are mutually exclusive.")
 	}
 
 	var fcr godo.FloatingIPCreateRequest
@@ -49,7 +49,7 @@ func resourceFloatingIPCreate(d *schema.ResourceData, m interface{}) error {
 
 	fip, _, err := client.FloatingIPs.Create(&fcr)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error creating floating ip: %s", err)
 	}
 
 	d.SetId(fip.IP)
@@ -99,6 +99,28 @@ func resourceFloatingIPUpdate(d *schema.ResourceData, m interface{}) error {
 				return fmt.Errorf("Error unassigning droplet from %s", d.Id())
 			}
 		}
+	}
+
+	if d.HasChange("region") {
+		client := m.(*godo.Client)
+
+		_, newRegion := d.GetChange("region")
+		_, err := client.FloatingIPs.Delete(d.Id())
+		if err != nil {
+			return fmt.Errorf("Error updating region to %s", newRegion.(string))
+		}
+
+		fcr := godo.FloatingIPCreateRequest{
+			Region: newRegion.(string),
+		}
+
+		fip, _, err := client.FloatingIPs.Create(&fcr)
+		if err != nil {
+			return fmt.Errorf("Error creating floating ip: %s", err)
+		}
+
+		d.SetId(fip.IP)
+		d.Set("region", fip.Region.Slug)
 	}
 
 	return nil
